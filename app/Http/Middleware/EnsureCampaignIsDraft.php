@@ -10,10 +10,18 @@ class EnsureCampaignIsDraft
 {
     public function handle(Request $request, Closure $next)
     {
-        $campaign = Campaign::findOrFail($request->route('campaign'));
+        // Resolve the campaign from the route.
+        // This handles both raw IDs and Laravel's Route Model Binding.
+        $routeParam = $request->route('campaign');
+        $campaign = $routeParam instanceof Campaign 
+            ? $routeParam 
+            : Campaign::findOrFail($routeParam);
 
-        if ($campaign->status === 'draft') {
-            return response()->json(['error' => 'Campaign must be in draft status.'], 422);
+        // Abort if the campaign is NOT a draft.
+        if ($campaign->status !== 'draft') {
+            return response()->json([
+                'error' => 'Action prohibited. Campaign must be in draft status.'
+            ], 422); 
         }
 
         return $next($request);

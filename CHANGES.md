@@ -51,3 +51,33 @@
 * **Issue:** Lack of unique constraints in `contact_contact_list` and `campaign_sends`.
 * **Why it matters:** Multiple queue workers or retries could result in duplicate subscriptions or, more critically, duplicate emails sent to the same contact (Spam).
 * **Fix:** Added composite unique indexes to both tables to ensure data uniqueness and prevent redundant processing at the lowest architectural level.
+
+### 11. Memory Management on Dispatch (OOM Prevention)
+* **Issue:** The `CampaignService@dispatch` method used `->get()` to load all active contacts for a campaign into memory at once.
+* **Why it matters:** Loading hundreds of thousands or millions of Eloquent models simultaneously will exhaust the server's RAM, causing a fatal crash and halting the campaign dispatch.
+* **Fix:** Replaced `->get()` with `->chunkById(1000)`. This processes the database records in small, memory-safe batches, ensuring constant memory usage regardless of the list size.
+
+### 12. Service-Level Idempotency & Duplicate Prevention
+* **Issue:** `CampaignService@dispatch` used `CampaignSend::create()` directly. If the dispatch command failed mid-execution and was retried, it would crash due to the new unique constraints or create duplicate pending jobs.
+* **Why it matters:** Restarting a failed dispatch should only process the remaining contacts.
+* **Fix:** Utilized `firstOrCreate` to safely resume interrupted dispatches and added a check to ensure jobs are only dispatched if the status is not already `sent`.
+
+### 13. Job Idempotency & Queue Resilience
+* **Issue:** The `SendCampaignEmail` Job did not verify if the email had already been dispatched before sending.
+* **Why it matters:** Queue workers can sometimes process the same job twice (e.g., due to timeouts or manual retries). Without idempotency checks, a user would receive the exact same email multiple times (Spam).
+* **Fix:** Implemented a strict `$send->status === 'sent'` check at the beginning of the `handle()` method to abort duplicate executions safely.
+
+### 14. N+1 Query Optimization in Queue Workers
+* **Issue:** The Job relied on lazy loading for `$send->contact->email` and `$send->campaign->subject`.
+* **Why it matters:** In a queue processing thousands of jobs per minute, lazy loading triggers two extra database queries per email, overwhelming the database connections.
+* **Fix:** Implemented eager loading `with(['contact', 'campaign'])` when retrieving the `CampaignSend` record.
+
+### 15. Queue Retry Logic & Failure Handling
+* **Issue:** The try/catch block in the Job caught exceptions and updated the status to `failed`, but did not rethrow the exception.
+* **Why it matters:** By suppressing the exception, Laravel's queue manager assumes the job was successful and removes it from the queue, completely bypassing the native retry mechanisms.
+* **Fix:** Added `throw $e;` at the end of the catch block. This allows the system to record the failure status while still letting the queue worker manage retry attempts or push it to the `failed_jobs` table.
+
+### 16. Middleware Logic & Security Flaw
+* **Issue:** The `EnsureCampaignIsDraft` middleware contained inverted conditional logic (`if ($campaign->status === 'draft')`).
+* **Why it matters:** This critical bug blocked actual drafts from being processed while allowing already `sending` or `sent` campaigns to be modified or dispatched again. In production, this would allow users to tamper with historical data or accidentally spam contact lists by re-dispatching completed campaigns.
+* **Fix:** Corrected the conditional to `!== 'draft'` to properly protect campaigns that are actively processing or already sent. Added support for both raw IDs and Route Model Binding resolution.
