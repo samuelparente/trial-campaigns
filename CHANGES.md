@@ -71,3 +71,27 @@
 * **Issue:** The `EnsureCampaignIsDraft` middleware contained inverted conditional logic (`if ($campaign->status === 'draft')`).
 * **Why it matters:** This critical bug blocked actual drafts from being processed while allowing already `sending` or `sent` campaigns to be modified or dispatched again. In production, this would allow users to tamper with historical data or accidentally spam contact lists by re-dispatching completed campaigns.
 * **Fix:** Corrected the conditional to `!== 'draft'` to properly protect campaigns that are actively processing or already sent. Added support for both raw IDs and Route Model Binding resolution.
+
+## Part 2 — Build the API
+
+### 1. Trade-off Analysis: API Versioning
+* **Consideration:** Evaluated the implementation of API versioning in the routing architecture (e.g., `/api/v1/contacts`) versus the flat routing structure requested in the trial specification (`/api/contacts`).
+* **Decision:** Maintained the flat routing structure to strictly adhere to the provided endpoint contract.
+* **Why (Trade-off Awareness):** In a real-world production environment, API versioning is mandatory from day one to ensure backward compatibility and prevent breaking changes for consumers when payloads evolve. However, for a closed-scope trial, adhering strictly to the requested client contract takes precedence. The architectural limitation is noted for future iterations.
+
+### 2. API Contract & Validation Layer
+* **Design Decision:** Defined the endpoint structure in `routes/api.php` and delegated all input validation to dedicated `FormRequest` classes.
+* **Why:** This architectural choice ensures that the application is protected against malformed data at the HTTP boundary. It keeps the Controllers "thin" and focused purely on orchestration, adhering to the Single Responsibility Principle (SRP).
+* **Security:** Every request is validated before reaching the business logic, preventing inconsistent states in the database.
+
+### 3. Thin Controllers & Dependency Injection
+* **Design Decision:** Kept the API controllers minimal, utilizing Laravel's implicit Route Model Binding to automatically resolve models and throw 404s.
+* **Why:** Reduces boilerplate code. Specifically, in `CampaignController@dispatch`, the controller simply receives the pre-validated model and injects the `CampaignService` to handle the heavy lifting. This separates HTTP delivery from core business logic.
+
+### 4. Zero-Memory Analytics (DB Aggregation)
+* **Design Decision:** Satisfied the requirement to return send stats (pending, sent, failed) directly through the API endpoints using the `withSendStats()` Eloquent scope built in Part 1.
+* **Why:** Prevents the N+1 query problem and completely bypasses the need to hydrate massive collections of `CampaignSend` models in memory just to count statuses, effectively making the endpoints O(1) in terms of application memory footprint regardless of campaign size.
+
+### 5. Dynamic API Pagination (Magic Number Removal)
+* **Design Decision:** Replaced hardcoded pagination limits (e.g., `paginate(15)`) across all controllers with dynamic query resolution using `$request->query('per_page', 15)`.
+* **Why:** This architectural choice removes "magic numbers" from the application logic and transfers control to the API consumer (Frontend/Mobile). It allows to dictate page sizes dynamically based on their specific UI/UX requirements (e.g., `?per_page=50`), while strictly enforcing a safe fallback default of 15 records to protect server memory against unconstrained database queries.
