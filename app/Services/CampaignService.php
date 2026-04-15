@@ -13,21 +13,28 @@ class CampaignService
      */
     public function dispatch(Campaign $campaign): void
     {
-        $contacts = $campaign->contactList->contacts()
-            ->where('status', 'active')
-            ->get();
-
-        foreach ($contacts as $contact) {
-            $send = CampaignSend::create([
-                'campaign_id' => $campaign->id,
-                'contact_id'  => $contact->id,
-                'status'      => 'pending',
-            ]);
-
-            SendCampaignEmail::dispatch($send->id);
-        }
-
+        // Update status immediately to prevent overlapping dispatches
         $campaign->update(['status' => 'sending']);
+
+        // Process in chunks of 1000 to prevent memory exhaustion on large lists
+        $campaign->contactList->contacts()
+            ->where('status', 'active')
+            ->chunkById(1000, function ($contacts) use ($campaign) {
+                
+                foreach ($contacts as $contact) {
+                    // Use firstOrCreate to prevent duplicate records if the dispatch process is interrupted and restarted
+                    $send = CampaignSend::firstOrCreate(
+                        ['campaign_id' => $campaign->id, 'contact_id' => $contact->id],
+                        ['status' => 'pending']
+                    );
+
+                    // Only push to the queue if the email has not been successfully sent yet
+                    if ($send->status !== 'sent') {
+                        SendCampaignEmail::dispatch($send->id);
+                    }
+                }
+                
+            });
     }
 
     public function buildPayload(Campaign $campaign, array $extra = []): array

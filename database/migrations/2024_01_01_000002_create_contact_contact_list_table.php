@@ -10,8 +10,12 @@ return new class extends Migration
     {
         Schema::create('contact_contact_list', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('contact_id')->constrained();
-            $table->foreignId('contact_list_id')->constrained();
+            // Foreign keys with cascade delete to maintain referential integrity
+            $table->foreignId('contact_id')->constrained()->onDelete('cascade');
+            $table->foreignId('contact_list_id')->constrained()->onDelete('cascade');
+            
+            // Prevent duplicate entries of the same contact in the same list
+            $table->unique(['contact_id', 'contact_list_id']);
             $table->timestamps();
         });
     }

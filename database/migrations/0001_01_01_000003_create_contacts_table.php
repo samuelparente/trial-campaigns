@@ -11,8 +11,10 @@ return new class extends Migration
         Schema::create('contacts', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email');
-            $table->enum('status', ['active', 'unsubscribed'])->default('active');
+            // Ensure email uniqueness for contact identification
+            $table->string('email')->unique();
+            // Index on status to optimize campaign filtering
+            $table->enum('status', ['active', 'unsubscribed'])->default('active')->index();
             $table->timestamps();
         });
     }

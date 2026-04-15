@@ -12,9 +12,14 @@ return new class extends Migration
             $table->id();
             $table->string('subject');
             $table->text('body');
-            $table->foreignId('contact_list_id')->constrained();
-            $table->enum('status', ['draft', 'sending', 'sent'])->default('draft');
-            $table->string('scheduled_at')->nullable();
+            $table->foreignId('contact_list_id')->constrained()->onDelete('cascade');
+            
+            // Indexing status for efficient queue processing
+            $table->enum('status', ['draft', 'sending', 'sent'])->default('draft')->index();
+            
+            // Using timestamp instead of string for proper date comparisons and indexing
+            $table->timestamp('scheduled_at')->nullable()->index();
+            
             $table->timestamps();
         });
     }
