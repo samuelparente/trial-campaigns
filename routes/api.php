@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\ContactListController;
 use App\Http\Controllers\Api\CampaignController;
+use App\Http\Middleware\EnsureCampaignIsDraft; 
 
 /*
 |--------------------------------------------------------------------------
@@ -37,5 +38,5 @@ Route::prefix('campaigns')->group(function () {
     
     // Utilizing the previously fixed middleware to prevent dispatching non-drafts
     Route::post('/{campaign}/dispatch', [CampaignController::class, 'dispatch'])
-        ->middleware('EnsureCampaignIsDraft');
+        ->middleware(EnsureCampaignIsDraft::class);
 });
