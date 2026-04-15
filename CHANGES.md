@@ -95,3 +95,17 @@
 ### 5. Dynamic API Pagination (Magic Number Removal)
 * **Design Decision:** Replaced hardcoded pagination limits (e.g., `paginate(15)`) across all controllers with dynamic query resolution using `$request->query('per_page', 15)`.
 * **Why:** This architectural choice removes "magic numbers" from the application logic and transfers control to the API consumer (Frontend/Mobile). It allows to dictate page sizes dynamically based on their specific UI/UX requirements (e.g., `?per_page=50`), while strictly enforcing a safe fallback default of 15 records to protect server memory against unconstrained database queries.
+
+## Automated Testing
+
+### 1. Behavioral Feature Testing
+* **Design Decision:** Implemented a comprehensive Feature Test suite using `Queue::fake()` to validate the campaign dispatch lifecycle.
+* **Why:** Instead of testing isolated units, these tests validate the orchestration between the Controller, Service, and Queue layers. It ensures that the business requirements are met without the overhead of real email sending or background workers.
+
+### 2. Idempotency & Protection Layer
+* **Design Decision:** Added specific test cases to verify that the `EnsureCampaignIsDraft` middleware correctly blocks duplicate dispatch attempts (returning 422).
+* **Why:** This prevents race conditions and accidental double-spending/sending, ensuring the system remains in a consistent state regardless of client-side retries.
+
+### 3. Subscription Status Integrity
+* **Design Decision:** Created a test case to ensure that contacts with an `unsubscribed` status are automatically excluded from campaign dispatches, even if they are part of the target list.
+* **Why:** This validates the core business logic of the `CampaignService` and ensures legal/compliance standards (GDPR/CAN-SPAM) are met by preventing unsolicited emails.
