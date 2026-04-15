@@ -71,3 +71,15 @@
 * **Issue:** The `EnsureCampaignIsDraft` middleware contained inverted conditional logic (`if ($campaign->status === 'draft')`).
 * **Why it matters:** This critical bug blocked actual drafts from being processed while allowing already `sending` or `sent` campaigns to be modified or dispatched again. In production, this would allow users to tamper with historical data or accidentally spam contact lists by re-dispatching completed campaigns.
 * **Fix:** Corrected the conditional to `!== 'draft'` to properly protect campaigns that are actively processing or already sent. Added support for both raw IDs and Route Model Binding resolution.
+
+## Part 2 — Build the API
+
+### 1. Trade-off Analysis: API Versioning
+* **Consideration:** Evaluated the implementation of API versioning in the routing architecture (e.g., `/api/v1/contacts`) versus the flat routing structure requested in the trial specification (`/api/contacts`).
+* **Decision:** Maintained the flat routing structure to strictly adhere to the provided endpoint contract.
+* **Why (Trade-off Awareness):** In a real-world production environment, API versioning is mandatory from day one to ensure backward compatibility and prevent breaking changes for consumers when payloads evolve. However, for a closed-scope trial, adhering strictly to the requested client contract takes precedence. The architectural limitation is noted for future iterations.
+
+### 2. API Contract & Validation Layer
+* **Design Decision:** Defined the endpoint structure in `routes/api.php` and delegated all input validation to dedicated `FormRequest` classes.
+* **Why:** This architectural choice ensures that the application is protected against malformed data at the HTTP boundary. It keeps the Controllers "thin" and focused purely on orchestration, adhering to the Single Responsibility Principle (SRP).
+* **Security:** Every request is validated before reaching the business logic, preventing inconsistent states in the database.
