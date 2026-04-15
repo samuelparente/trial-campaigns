@@ -10,10 +10,17 @@ return new class extends Migration
     {
         Schema::create('campaign_sends', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('campaign_id')->constrained();
-            $table->foreignId('contact_id')->constrained();
-            $table->enum('status', ['pending', 'sent', 'failed'])->default('pending');
+            $table->foreignId('campaign_id')->constrained()->onDelete('cascade');
+            $table->foreignId('contact_id')->constrained()->onDelete('cascade');
+            
+            // Indexing status to speed up aggregation queries (pending/sent/failed counts)
+            $table->enum('status', ['pending', 'sent', 'failed'])->default('pending')->index();
+            
             $table->text('error_message')->nullable();
+            
+            // Composite unique index to guarantee idempotency at database level
+            $table->unique(['campaign_id', 'contact_id']);
+            
             $table->timestamps();
         });
     }

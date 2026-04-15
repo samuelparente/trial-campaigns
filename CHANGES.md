@@ -36,3 +36,18 @@
 * **Consideration:** Evaluated the removal of Laravel's default `timestamps()` on the `campaign_sends` table to save disk space and I/O overhead on high-volume inserts (e.g., millions of rows per campaign).
 * **Decision:** Decided to **keep** the timestamps. 
 * **Why (Trade-off Awareness):** While dropping timestamps is a valid micro-optimization for scale, the business logic of an email dispatcher heavily relies on temporal data. The `updated_at` column is critical for diagnosing queue bottlenecks, tracking exactly when a specific delivery failed, and providing accurate analytics to users. Business observability outweighs the minor storage cost in this context.
+
+### 8. Database Schema & Indexing Optimization
+* **Issue:** Lack of indexes on frequently queried columns (`status`, `scheduled_at`) and incorrect data types.
+* **Why it matters:** Without indexes, the database performs full table scans, which causes significant latency as the dataset grows to millions of records. Using a `string` for `scheduled_at` prevents efficient SQL date comparisons and sorting.
+* **Fix:** Implemented B-Tree indexes on all filter columns and changed `scheduled_at` to a `timestamp` type.
+
+### 9. Referential Integrity & Data Cleanup
+* **Issue:** Foreign keys in pivot and relationship tables lacked `onDelete('cascade')` constraints.
+* **Why it matters:** Deleting a contact, list, or campaign would leave orphaned records in the database, leading to data inconsistency and potential application errors.
+* **Fix:** Enforced `onDelete('cascade')` on all foreign key constraints.
+
+### 10. Database-Level Idempotency Guards
+* **Issue:** Lack of unique constraints in `contact_contact_list` and `campaign_sends`.
+* **Why it matters:** Multiple queue workers or retries could result in duplicate subscriptions or, more critically, duplicate emails sent to the same contact (Spam).
+* **Fix:** Added composite unique indexes to both tables to ensure data uniqueness and prevent redundant processing at the lowest architectural level.
