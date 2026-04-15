@@ -83,3 +83,15 @@
 * **Design Decision:** Defined the endpoint structure in `routes/api.php` and delegated all input validation to dedicated `FormRequest` classes.
 * **Why:** This architectural choice ensures that the application is protected against malformed data at the HTTP boundary. It keeps the Controllers "thin" and focused purely on orchestration, adhering to the Single Responsibility Principle (SRP).
 * **Security:** Every request is validated before reaching the business logic, preventing inconsistent states in the database.
+
+### 3. Thin Controllers & Dependency Injection
+* **Design Decision:** Kept the API controllers minimal, utilizing Laravel's implicit Route Model Binding to automatically resolve models and throw 404s.
+* **Why:** Reduces boilerplate code. Specifically, in `CampaignController@dispatch`, the controller simply receives the pre-validated model and injects the `CampaignService` to handle the heavy lifting. This separates HTTP delivery from core business logic.
+
+### 4. Zero-Memory Analytics (DB Aggregation)
+* **Design Decision:** Satisfied the requirement to return send stats (pending, sent, failed) directly through the API endpoints using the `withSendStats()` Eloquent scope built in Part 1.
+* **Why:** Prevents the N+1 query problem and completely bypasses the need to hydrate massive collections of `CampaignSend` models in memory just to count statuses, effectively making the endpoints O(1) in terms of application memory footprint regardless of campaign size.
+
+### 5. Dynamic API Pagination (Magic Number Removal)
+* **Design Decision:** Replaced hardcoded pagination limits (e.g., `paginate(15)`) across all controllers with dynamic query resolution using `$request->query('per_page', 15)`.
+* **Why:** This architectural choice removes "magic numbers" from the application logic and transfers control to the API consumer (Frontend/Mobile). It allows to dictate page sizes dynamically based on their specific UI/UX requirements (e.g., `?per_page=50`), while strictly enforcing a safe fallback default of 15 records to protect server memory against unconstrained database queries.
